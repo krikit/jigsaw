@@ -11,6 +11,8 @@ __copyright__ = 'No copyright, just copyleft!'
 ###########
 # imports #
 ###########
+import logging
+
 import torch
 from torch import nn
 from torch.nn import functional as F
@@ -37,9 +39,13 @@ class ToxicityModel(nn.Module):
         Args:
             batch:  input of batch
         """
-        bert_out, _ = self.bert_model(batch.comment_text, output_all_encoded_layers=False)
+        logging.debug('inside(input): %s', batch.size())
+        # BERT 모델은 두번째 차원(index: 1)이 배치 차원이다. (batch sencond)
+        bert_out, _ = self.bert_model(batch, output_all_encoded_layers=False)
         classifier = F.selu(bert_out[0])
         hdn1_out = F.selu(self.hidden1(F.dropout(classifier)))
         hdn2_out = F.selu(self.hidden2(F.dropout(classifier + hdn1_out)))
         hdn3_out = torch.sigmoid(self.hidden3(F.dropout(hdn2_out)))    # pylint: disable=no-member
-        return hdn3_out
+        logging.debug('inside(output): %s', hdn3_out.size())
+        # data parallel을 위해 배치 차원을 다시 복원해야 한다.
+        return hdn3_out.transpose(0, 1)

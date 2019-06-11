@@ -123,7 +123,7 @@ class DateTimeField(Field):
         Returns:
             float value
         """
-        return datetime.strptime(val + '00', '%Y-%m-%d %H:%M:%S.%f%z').timestamp() if val else 0.0
+        return datetime.strptime(val[:19], '%Y-%m-%d %H:%M:%S').timestamp() if val else 0.0
 
 
 #############

@@ -45,10 +45,10 @@ def main():
                         default=100)
     parser.add_argument('--patience', help='patience number for early stopping <default: 5>',
                         metavar='NUM', type=int, default=5)
-    parser.add_argument('--batch-size', help='batch size <default: 40>', metavar='SIZE', type=int,
-                        default=40)
-    parser.add_argument('--gpu-num', help='GPU number <default: -1 (CPU)>', metavar='NUM', type=int,
-                        default=-1)
+    parser.add_argument('--batch-size', help='batch size <default: 36>', metavar='SIZE', type=int,
+                        default=36)
+    parser.add_argument('--model-out', help='model output path <default: ./toxicity.model>',
+                        metavar='FILE', default='./toxicity.model')
     args = parser.parse_args()
 
     if args.debug:
