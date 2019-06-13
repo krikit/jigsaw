@@ -38,15 +38,17 @@ def main():
     """
     main function processes only argument parsing
     """
-    parser = ArgumentParser(description='cat')
+    parser = ArgumentParser(description='train program')
     parser.add_argument('-t', '--train', help='train dataset', metavar='FILE', required=True)
     parser.add_argument('--debug', help='enable debug', action='store_true')
     parser.add_argument('--epoch', help='epoch number <default: 100>', metavar='NUM', type=int,
                         default=100)
-    parser.add_argument('--patience', help='patience number for early stopping <default: 5>',
-                        metavar='NUM', type=int, default=5)
-    parser.add_argument('--batch-size', help='batch size <default: 36>', metavar='SIZE', type=int,
-                        default=36)
+    parser.add_argument('--patience', help='patience number for early stopping <default: 10>',
+                        metavar='NUM', type=int, default=10)
+    parser.add_argument('--batch-size', help='batch size <default: 500>', metavar='SIZE', type=int,
+                        default=500)
+    parser.add_argument('--learning-rate', help='learning rate <default: 0.001>', metavar='REAL',
+                        type=float, default=0.001)
     parser.add_argument('--model-out', help='model output path <default: ./toxicity.model>',
                         metavar='FILE', default='./toxicity.model')
     args = parser.parse_args()

@@ -20,6 +20,7 @@ from typing import List
 
 from pytorch_pretrained_bert import BertTokenizer
 import torch
+from torch import Tensor    # pylint: disable=no-name-in-module
 from torchtext.data import Dataset, Field, TabularDataset
 from torchtext.vocab import Vocab
 
@@ -49,7 +50,7 @@ class BertField(Field):
     text field processed by BERT
     """
     def __init__(self):
-        super().__init__(use_vocab=True, tokenize=_BERT_TOK.tokenize,
+        super().__init__(use_vocab=True, tokenize=BertField.txt2tok, batch_first=True,
                          preprocessing=BertField.preproc)
         self.vocab = BertVocab()
 
@@ -65,6 +66,31 @@ class BertField(Field):
         logging.debug('tokens: %s', tokens)
         return ['[CLS]', ] + tokens[:510] + ['[SEP]', ]
 
+    @classmethod
+    def txt2tok(cls, text: str, do_preproc: bool = False) -> List[str]:
+        """
+        토크나이저
+        Args:
+            text:  text to tokenize
+            do_preproc:  whether do preproc or not
+        Returns:
+            list of tokens
+        """
+        tokens = _BERT_TOK.tokenize(text)
+        return cls.preproc(tokens) if do_preproc else tokens
+
+    def to_tensor(self, tokens: List[str]) -> Tensor:
+        """
+        토큰을 텐서로 변환하는 메소드
+        Args:
+            tokens:  토큰 리스트
+        Returns:
+            텐서
+        """
+        nums = [self.vocab.stoi[token] for token in tokens]
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    # pylint: disable=no-member
+        return torch.tensor(nums, device=device)    # pylint: disable=not-callable
+
 
 class IntField(Field):
     """
@@ -72,7 +98,7 @@ class IntField(Field):
     """
     def __init__(self, is_target: bool = False):
         super().__init__(dtype=torch.long, use_vocab=False, sequential=False, is_target=is_target,    # pylint: disable=no-member
-                         preprocessing=IntField.preproc)
+                         batch_first=True, preprocessing=IntField.preproc)
 
     @classmethod
     def preproc(cls, val: str) -> int:
@@ -92,7 +118,7 @@ class FloatField(Field):
     """
     def __init__(self, is_target: bool = False):
         super().__init__(dtype=torch.float32, use_vocab=False, sequential=False,    # pylint: disable=no-member
-                         is_target=is_target, preprocessing=FloatField.preproc)
+                         batch_first=True, is_target=is_target, preprocessing=FloatField.preproc)
 
     @classmethod
     def preproc(cls, val: str) -> float:
@@ -112,7 +138,7 @@ class DateTimeField(Field):
     """
     def __init__(self):
         super().__init__(dtype=torch.float64, use_vocab=False, sequential=False,    # pylint: disable=no-member
-                         preprocessing=DateTimeField.preproc)
+                         batch_first=True, preprocessing=DateTimeField.preproc)
 
     @classmethod
     def preproc(cls, val: str) -> float:
@@ -129,7 +155,7 @@ class DateTimeField(Field):
 #############
 # constants #
 #############
-RATING_FIELD = Field(sequential=False)
+RATING_FIELD = Field(sequential=False, batch_first=True)
 
 TRAIN_FIELDS = [
     ('id', IntField()),
