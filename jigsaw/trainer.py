@@ -51,7 +51,7 @@ class Trainer:
         self.trn_itr = BucketIterator(self.train, device=device, batch_size=batch_size,
                                       shuffle=True, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
-        self.vld_itr = BucketIterator(self.valid, device=device, batch_size=(batch_size // 2),
+        self.vld_itr = BucketIterator(self.valid, device=device, batch_size=batch_size,
                                       shuffle=False, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
         self.log_step = 1000
@@ -61,7 +61,7 @@ class Trainer:
             self.log_step = 100
 
         self.model = ToxicityModel()
-        self.criterion = nn.BCELoss()
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([0.9, ]))    # pylint: disable=not-callable
         if torch.cuda.is_available():
             self.model = DataParallelModel(self.model.cuda())
             self.criterion = DataParallelCriterion(self.criterion)

@@ -55,5 +55,5 @@ class Predictor:
         tokens = self.bert_field.txt2tok(text, do_preproc=True)
         tensor = self.bert_field.to_tensor(tokens)
         with torch.no_grad():
-            output = self.model(tensor.unsqueeze(0))
+            output = torch.sigmoid(self.model(tensor.unsqueeze(0)))    # pylint: disable=no-member
         return output.squeeze(0).item()

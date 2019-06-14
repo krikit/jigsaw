@@ -49,7 +49,7 @@ class ToxicityModel(nn.Module):
         hdn1_out = F.relu(self.hidden1(self.hdn1_drop(pooled_out)))
         hdn2_out = F.relu(self.hidden2(self.hdn2_drop(pooled_out + hdn1_out)))
         logit = self.hidden3(self.hdn3_drop(hdn2_out))
-        return torch.sigmoid(logit)    # pylint: disable=no-member
+        return logit
 
     def train(self, mode: bool = True):
         """
