@@ -13,7 +13,6 @@ __copyright__ = 'No copyright, just copyleft!'
 ###########
 from argparse import Namespace
 import logging
-import random
 
 import torch
 from torch import nn, optim
@@ -43,15 +42,15 @@ class Trainer:
         self.train, self.valid = data.split(0.8)
         RATING_FIELD.build_vocab(self.train)
 
-        device = 'cpu'
-        batch_size = self.cfg.batch_size
+        self.device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')    # pylint: disable=no-member
+        self.batch_size = cfg.batch_size
         if torch.cuda.is_available():
-            device = 'cuda'
-            batch_size *= torch.cuda.device_count()
-        self.trn_itr = BucketIterator(self.train, device=device, batch_size=batch_size,
+            self.batch_size *= torch.cuda.device_count()
+
+        self.trn_itr = BucketIterator(self.train, device=self.device, batch_size=self.batch_size,
                                       shuffle=True, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
-        self.vld_itr = BucketIterator(self.valid, device=device, batch_size=batch_size,
+        self.vld_itr = BucketIterator(self.valid, device=self.device, batch_size=self.batch_size,
                                       shuffle=False, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
         self.log_step = 1000
@@ -61,7 +60,10 @@ class Trainer:
             self.log_step = 100
 
         self.model = ToxicityModel()
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=torch.tensor([0.9, ]))    # pylint: disable=not-callable
+        pos_weight = (len([exam for exam in self.train.examples if exam.target < 0.5])
+                      / len([exam for exam in self.train.examples if exam.target >= 0.5]))
+        pos_wgt_tensor = torch.tensor([pos_weight, ], device=self.device)    # pylint: disable=not-callable
+        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_wgt_tensor)
         if torch.cuda.is_available():
             self.model = DataParallelModel(self.model.cuda())
             self.criterion = DataParallelCriterion(self.criterion)
@@ -98,10 +100,9 @@ class Trainer:
         Returns:
             average loss
         """
-        trn_itr = self._train_iter()
         self.model.train()
         log_step = self.log_step
-        progress = tqdm(trn_itr, f'EPOCH[{epoch}]', mininterval=1, ncols=100)
+        progress = tqdm(self.trn_itr, f'EPOCH[{epoch}]', mininterval=1, ncols=100)
         losses = []
         for step, batch in enumerate(progress, start=1):
             outputs = self.model(batch.comment_text)
@@ -120,28 +121,6 @@ class Trainer:
             self.optimizer.step()
             self.optimizer.zero_grad()
         return sum(losses) / len(losses)
-
-    def _train_iter(self):
-        """
-        한번의 epoch에 적용할 training example의 iterator
-        원래는 전체 train 데이터를 사용해야 하나, output class imbalance 문제로 (pos:neg = 1:9),
-        pos:neg 비율을 1:1로 랜덤하게 negative example을 추출한 셋을 사용한다.
-        """
-        pos_exams = [exam for exam in self.train.examples if exam.target > 0.0]
-        neg_exams = [exam for exam in self.train.examples if exam.target <= 0.0]
-        if len(neg_exams) <= len(pos_exams):
-            return self.trn_itr
-        neg_exams = random.sample(neg_exams, len(pos_exams))
-        all_exams = pos_exams + neg_exams
-        random.shuffle(all_exams)
-        dataset = Dataset(all_exams, self.train.fields)
-        batch_size = self.cfg.batch_size
-        device = 'cpu'
-        if torch.cuda.is_available():
-            device = 'cuda'
-            batch_size *= torch.cuda.device_count()
-        return BucketIterator(dataset, device=device, batch_size=batch_size, shuffle=False,
-                              sort_within_batch=True, sort_key=lambda exam: -len(exam.comment_text))
 
     def _evaluate(self, epoch: int) -> float:
         """
