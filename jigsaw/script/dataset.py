@@ -270,4 +270,4 @@ def load_test(path: str) -> Dataset:
     Returns:
         dataset object
     """
-    return _load(path, TEST_FIELDS)
+    return TabularDataset(path, format='csv', skip_header=True, fields=TEST_FIELDS)
