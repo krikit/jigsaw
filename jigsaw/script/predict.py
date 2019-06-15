@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 
 """
@@ -30,7 +29,7 @@ def run(args: Namespace):
     """
     pred = Predictor(args.model)
     if args.test:
-        pred.predict_test(args.test, sys.stdout)
+        pred.predict_test(args.test, args.batch_size, sys.stdout)
     else:
         for line_num, line in enumerate(sys.stdin, start=1):
             if line_num % 1000 == 0:
@@ -52,6 +51,8 @@ def main():
     parser = ArgumentParser(description='predict program')
     parser.add_argument('-m', '--model', help='model path', metavar='FILE', required=True)
     parser.add_argument('--test', help='test dataset path', metavar='FILE')
+    parser.add_argument('--batch-size', help='batch size <default: 32>', metavar='SIZE', type=int,
+                        default=32)
     parser.add_argument('--input', help='input file <default: stdin>', metavar='FILE')
     parser.add_argument('--output', help='output file <default: stdout>', metavar='FILE')
     parser.add_argument('--debug', help='enable debug', action='store_true')

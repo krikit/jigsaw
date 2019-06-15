@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-
-
 """
 models
 __author__ = 'krikit (krikit@naver.com)'
@@ -17,6 +14,15 @@ from torch.nn import functional as F
 from pytorch_pretrained_bert import BertModel
 
 
+#############
+# constants #
+#############
+# BERT_MODEL_PATH = 'bert-large-cased'
+BERT_MODEL_PATH = '../input/bertpt/bertpt/bert-large-cased/bert-large-cased.tar.gz'
+
+
+
+
 #########
 # types #
 #########
@@ -24,9 +30,9 @@ class ToxicityModel(nn.Module):
     """
     toxicity classification model
     """
-    def __init__(self):
+    def __init__(self, model_path: str = BERT_MODEL_PATH):
         super().__init__()
-        self.bert_model = BertModel.from_pretrained('bert-base-cased')
+        self.bert_model = BertModel.from_pretrained(model_path)
         bert_dim = self.bert_model.config.hidden_size
         self.hdn1_drop = nn.Dropout()
         self.hidden1 = nn.Linear(bert_dim, bert_dim)
@@ -35,15 +41,11 @@ class ToxicityModel(nn.Module):
         self.hdn3_drop = nn.Dropout()
         self.hidden3 = nn.Linear(bert_dim // 2, 1)
 
-        # 점수를 regression하지 않고 0, 1로 binary classification으로 본다.
-        # positive weight를 주기 위해 weighted corss entropy loss를 사용
-
     def forward(self, batch):    # pylint: disable=arguments-differ
         """
         Args:
             batch:  input of batch
         """
-        # BERT 모델은 두번째 차원(index: 1)이 배치 차원이다. (batch sencond)
         with torch.no_grad():    # use BERT as feature
             _, pooled_out = self.bert_model(batch, output_all_encoded_layers=False)
         hdn1_out = F.relu(self.hidden1(self.hdn1_drop(pooled_out)))

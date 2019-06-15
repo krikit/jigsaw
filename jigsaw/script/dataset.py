@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-
-
 """
 dataset
 __author__ = 'krikit (krikit@naver.com)'
@@ -16,7 +13,7 @@ from datetime import datetime
 import logging
 import os
 import pickle
-from typing import List
+from typing import List, Tuple
 
 from pytorch_pretrained_bert import BertTokenizer
 import torch
@@ -28,7 +25,8 @@ from torchtext.vocab import Vocab
 #############
 # constants #
 #############
-_BERT_TOK = BertTokenizer.from_pretrained('bert-base-cased', do_lower_case=False)    # BERT 토크나이저
+# BERT_TOK_PATH = 'bert-large-cased'
+BERT_TOK_PATH = '../input/bertpt/bertpt/bert-large-cased/bert-large-cased-vocab.txt'
 
 
 #########
@@ -38,54 +36,55 @@ class BertVocab(Vocab):
     """
     vocabulary for BERT fields
     """
-    def __init__(self):
+    def __init__(self, vocab_path: str = BERT_TOK_PATH):
         super().__init__(Counter(), specials=[])
-        self.stoi = _BERT_TOK.vocab
-        self.stoi['<pad>'] = _BERT_TOK.vocab['[PAD]']
-        self.stoi['<unk>'] = _BERT_TOK.vocab['[UNK]']
+        # BERT tokenizer
+        self.bert_tok = BertTokenizer.from_pretrained(vocab_path, do_lower_case=False)
+        self.stoi = self.bert_tok.vocab
+        self.stoi['<pad>'] = self.bert_tok.vocab['[PAD]']
+        self.stoi['<unk>'] = self.bert_tok.vocab['[UNK]']
 
-
-class BertField(Field):
-    """
-    text field processed by BERT
-    """
-    def __init__(self):
-        super().__init__(use_vocab=True, tokenize=BertField.txt2tok, batch_first=True,
-                         preprocessing=BertField.preproc)
-        self.vocab = BertVocab()
-
-    @classmethod
-    def preproc(cls, tokens: List[str]) -> List[str]:
+    def tokenize(self, text: str, do_preproc: bool = False) -> List[str]:
         """
-        맨 앞에 [CLS] 토큰을, 맨 뒤에 [SEP] 토큰을 붙여준다.
-        Args:
-            tokens:  토큰 리스트
-        Returns:
-            토큰 리스트
-        """
-        logging.debug('tokens: %s', tokens)
-        return ['[CLS]', ] + tokens[:510] + ['[SEP]', ]
-
-    @classmethod
-    def txt2tok(cls, text: str, do_preproc: bool = False) -> List[str]:
-        """
-        토크나이저
+        tokenizer
         Args:
             text:  text to tokenize
             do_preproc:  whether do preproc or not
         Returns:
             list of tokens
         """
-        tokens = _BERT_TOK.tokenize(text)
-        return cls.preproc(tokens) if do_preproc else tokens
+        tokens = self.bert_tok.tokenize(text)
+        return BertField.preproc(tokens) if do_preproc else tokens
+
+
+class BertField(Field):
+    """
+    text field processed by BERT
+    """
+    def __init__(self, bert_vocab_path: str = BERT_TOK_PATH):
+        self.vocab = BertVocab(bert_vocab_path)
+        super().__init__(use_vocab=True, tokenize=self.vocab.tokenize, batch_first=True,
+                         preprocessing=BertField.preproc)
+
+    @classmethod
+    def preproc(cls, tokens: List[str]) -> List[str]:
+        """
+        add '[CLS]' token at first, add '[SEP]' token at last
+        Args:
+            tokens:  token list
+        Returns:
+            preprocessed token list
+        """
+        logging.debug('tokens: %s', tokens)
+        return ['[CLS]', ] + tokens[:510] + ['[SEP]', ]
 
     def to_tensor(self, tokens: List[str]) -> Tensor:
         """
-        토큰을 텐서로 변환하는 메소드
+        make tensor from tokens
         Args:
-            tokens:  토큰 리스트
+            tokens:  token list
         Returns:
-            텐서
+            tensor
         """
         nums = [self.vocab.stoi[token] for token in tokens]
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')    # pylint: disable=no-member
@@ -236,7 +235,7 @@ TEST_FIELDS = [
 #############
 # functions #
 #############
-def load(path: str) -> Dataset:
+def _load(path: str, fields: List[Tuple[str, Field]]) -> Dataset:
     """
     load dataset
     Args:
@@ -246,7 +245,29 @@ def load(path: str) -> Dataset:
     """
     pkl_path = f'{path}.pkl'
     if os.path.exists(pkl_path) and os.path.getmtime(path) < os.path.getmtime(pkl_path):
-        return Dataset(pickle.load(open(pkl_path, 'rb')), TRAIN_FIELDS)
-    tbl_ds = TabularDataset(path, format='csv', skip_header=True, fields=TRAIN_FIELDS)
+        return Dataset(pickle.load(open(pkl_path, 'rb')), fields)
+    tbl_ds = TabularDataset(path, format='csv', skip_header=True, fields=fields)
     pickle.dump(tbl_ds.examples, open(pkl_path, 'wb'))
     return tbl_ds
+
+
+def load_train(path: str) -> Dataset:
+    """
+    load train dataset
+    Args:
+        path:  file path
+    Returns:
+        dataset object
+    """
+    return _load(path, TRAIN_FIELDS)
+
+
+def load_test(path: str) -> Dataset:
+    """
+    load test dataset
+    Args:
+        path:  file path
+    Returns:
+        dataset object
+    """
+    return _load(path, TEST_FIELDS)

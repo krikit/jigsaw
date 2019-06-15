@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 
 
 """
@@ -28,7 +27,7 @@ def run(args: Namespace):
     Args:
         args:  program arguments
     """
-    Trainer(args, dataset.load(args.train)).run()
+    Trainer(args, dataset.load_train(args.train)).run()
 
 
 ########
@@ -45,8 +44,8 @@ def main():
                         default=100)
     parser.add_argument('--patience', help='patience number for early stopping <default: 10>',
                         metavar='NUM', type=int, default=10)
-    parser.add_argument('--batch-size', help='batch size <default: 500>', metavar='SIZE', type=int,
-                        default=500)
+    parser.add_argument('--batch-size', help='batch size <default: 256>', metavar='SIZE', type=int,
+                        default=256)
     parser.add_argument('--learning-rate', help='learning rate <default: 0.001>', metavar='REAL',
                         type=float, default=0.001)
     parser.add_argument('--model-out', help='model output path <default: ./toxicity.model>',

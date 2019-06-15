@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-
-
 """
 trainer
 __author__ = 'krikit (krikit@naver.com)'
@@ -48,10 +45,10 @@ class Trainer:
             self.batch_size *= torch.cuda.device_count()
 
         self.trn_itr = BucketIterator(self.train, device=self.device, batch_size=self.batch_size,
-                                      shuffle=True, sort_within_batch=True,
+                                      shuffle=True, train=True, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
         self.vld_itr = BucketIterator(self.valid, device=self.device, batch_size=self.batch_size,
-                                      shuffle=False, sort_within_batch=True,
+                                      shuffle=False, train=False, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
         self.log_step = 1000
         if len(self.trn_itr) < 100:
@@ -83,7 +80,6 @@ class Trainer:
                 min_loss_str = ' is min'
                 min_loss = valid_loss
                 min_epoch = epoch
-                # self.model.save(self.cfg.model_out)
                 torch.save(self.model.state_dict(), self.cfg.model_out)
             logging.info('EPOCH[%d]: train loss: %.6f, valid loss: %.6f%s', epoch, train_loss,
                          valid_loss, min_loss_str)
@@ -106,9 +102,10 @@ class Trainer:
         losses = []
         for step, batch in enumerate(progress, start=1):
             outputs = self.model(batch.comment_text)
-            # DataParallelModel로 감싼 모델의 출력은 각 GPU로부터 나온 출력들의 리스트이다.
-            # DataParallelCriterion의 입력은 튜플의 리스트이므로 리스트를 풀어서 각 엘리먼트를 튜플로 감싸준다.
-            # ToxicityModel의 출력은 0~1의 1차원 값이므로 [batch x 1]인 출력의 첫번째 차원을 squeeze로 없앤다.
+            # output of model wrapped with DataParallelModel is a list of outputs from each GPU
+            # make input of DataParallelCriterion as a list of tuples
+            # since output of ToxicityModel is a scalar value fro 0 to 1,
+            #   squeeze first dim of output which size is [batch, 1]
             if isinstance(self.model, DataParallelModel):
                 loss = self.criterion([(output.squeeze(1), ) for output in outputs], batch.target)
             else:
