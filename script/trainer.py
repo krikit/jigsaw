@@ -10,6 +10,7 @@ __copyright__ = 'No copyright, just copyleft!'
 ###########
 from argparse import Namespace
 import logging
+from typing import Dict, List
 
 import torch
 from torch import nn, optim
@@ -51,9 +52,9 @@ class Trainer:
                                       shuffle=False, train=False, sort_within_batch=True,
                                       sort_key=lambda exam: -len(exam.comment_text))
         self.log_step = 1000
-        if len(self.trn_itr) < 100:
+        if len(self.vld_itr) < 100:
             self.log_step = 10
-        elif len(self.trn_itr) < 1000:
+        elif len(self.vld_itr) < 1000:
             self.log_step = 100
 
         self.model = ToxicityModel()
@@ -70,23 +71,24 @@ class Trainer:
         """
         do train
         """
-        min_loss = 9e10
-        min_epoch = -1
+        max_f_score = -9e10
+        max_epoch = -1
         for epoch in range(self.cfg.epoch):
             train_loss = self._train_epoch(epoch)
-            valid_loss = self._evaluate(epoch)
-            min_loss_str = f' > {min_loss:.6f}'
-            if valid_loss < min_loss:
-                min_loss_str = ' is min'
-                min_loss = valid_loss
-                min_epoch = epoch
+            metrics = self._evaluate(epoch)
+            max_f_score_str = f' < {max_f_score:.2f}'
+            if metrics['f_score'] > max_f_score:
+                max_f_score_str = ' is max'
+                max_f_score = metrics['f_score']
+                max_epoch = epoch
                 torch.save(self.model.state_dict(), self.cfg.model_out)
-            logging.info('EPOCH[%d]: train loss: %.6f, valid loss: %.6f%s', epoch, train_loss,
-                         valid_loss, min_loss_str)
-            if (epoch - min_epoch) >= self.cfg.patience:
+            logging.info('EPOCH[%d]: train loss: %.6f, valid loss: %.6f, acc: %.2f,' \
+                         ' F: %.2f%s', epoch, train_loss, metrics['loss'],
+                         metrics['accuracy'], metrics['f_score'], max_f_score_str)
+            if (epoch - max_epoch) >= self.cfg.patience:
                 logging.info('early stopping...')
                 break
-        logging.info('epoch: %d, valid loss: %.6f', min_epoch, min_loss)
+        logging.info('epoch: %d, f-score: %.2f', max_epoch, max_f_score)
 
     def _train_epoch(self, epoch: int) -> float:
         """
@@ -97,7 +99,6 @@ class Trainer:
             average loss
         """
         self.model.train()
-        log_step = self.log_step
         progress = tqdm(self.trn_itr, f'EPOCH[{epoch}]', mininterval=1, ncols=100)
         losses = []
         for step, batch in enumerate(progress, start=1):
@@ -111,36 +112,86 @@ class Trainer:
             else:
                 loss = self.criterion(outputs.squeeze(1), batch.target)
             losses.append(loss.item())
-            if step % log_step == 0:
-                last_loss = sum(losses[-log_step:]) / log_step
-                progress.set_description(f'EPOCH[{epoch}] ({last_loss:.6f})')
+            if step % self.log_step == 0:
+                avg_loss = sum(losses) / len(losses)
+                progress.set_description(f'EPOCH[{epoch}] ({avg_loss:.6f})')
             loss.backward()
             self.optimizer.step()
             self.optimizer.zero_grad()
         return sum(losses) / len(losses)
 
-    def _evaluate(self, epoch: int) -> float:
+    def _evaluate(self, epoch: int) -> Dict[str, float]:
         """
         evaluate on validation data
         Args:
             epoch:  epoch number
         Returns:
-            validation loss
+            metrics
         """
         self.model.eval()
-        log_step = self.log_step // 2
         progress = tqdm(self.vld_itr, f' EVAL[{epoch}]', mininterval=1, ncols=100)
         losses = []
+        preds = []
+        golds = []
         for step, batch in enumerate(progress, start=1):
             with torch.no_grad():
                 outputs = self.model(batch.comment_text)
                 if isinstance(self.model, DataParallelModel):
                     loss = self.criterion([(output.squeeze(1), ) for output in outputs],
                                           batch.target)
+                    for output in outputs:
+                        preds.extend([o.item() for o in torch.sigmoid(output.squeeze(1))])    # pylint: disable=no-member
                 else:
                     loss = self.criterion(outputs.squeeze(1), batch.target)
+                    preds.extend([output.item() for output in torch.sigmoid(outputs.squeeze(1))])    # pylint: disable=no-member
                 losses.append(loss.item())
-                if step % log_step == 0:
-                    last_loss = sum(losses[-log_step:]) / log_step
-                    progress.set_description(f' EVAL[{epoch}] ({last_loss:.6f})')
-        return sum(losses) / len(losses)
+                golds.extend([gold.item() for gold in batch.target])
+                if step % self.log_step == 0:
+                    avg_loss = sum(losses) / len(losses)
+                    progress.set_description(f' EVAL[{epoch}] ({avg_loss:.6f})')
+        metrics = self._get_metrics(preds, golds)
+        metrics['loss'] = sum(losses) / len(losses)
+        return metrics
+
+    @classmethod
+    def _get_metrics(cls, preds: List[float], golds: List[float]) -> Dict[str, float]:
+        """
+        get metric values
+        Args:
+            preds:  predictions
+            golds:  gold standards
+        Returns:
+            metric
+        """
+        assert len(preds) == len(golds)
+        true_pos = 0
+        false_pos = 0
+        false_neg = 0
+        true_neg = 0
+        for pred, gold in zip(preds, golds):
+            if pred >= 0.5:
+                if gold >= 0.5:
+                    true_pos += 1
+                else:
+                    false_pos += 1
+            else:
+                if gold >= 0.5:
+                    false_neg += 1
+                else:
+                    true_neg += 1
+        accuracy = (true_pos + true_neg) / (true_pos + false_pos + false_neg + true_neg)
+        precision = 0.0
+        if (true_pos + false_pos) > 0:
+            precision = true_pos / (true_pos + false_pos)
+        recall = 0.0
+        if (true_pos + false_neg) > 0:
+            recall = true_pos / (true_pos + false_neg)
+        f_score = 0.0
+        if (precision + recall) > 0.0:
+            f_score = 2.0 * precision * recall / (precision + recall)
+        return {
+            'accuracy': 100.0 * accuracy,
+            'precision': 100.0 * precision,
+            'recall': 100.0 * recall,
+            'f_score': 100.0 * f_score,
+        }
