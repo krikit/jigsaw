@@ -26,7 +26,7 @@ from torchtext.vocab import Vocab
 # constants #
 #############
 # BERT_TOK_PATH = 'bert-large-cased'
-BERT_TOK_PATH = '../input/bertpt/bertpt/bert-large-cased/bert-large-cased-vocab.txt'
+BERT_TOK_PATH = '../input/ppbert/ppbert/bert-large-cased/bert-large-cased-vocab.txt'
 
 
 #########
