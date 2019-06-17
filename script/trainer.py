@@ -57,7 +57,10 @@ class Trainer:
         elif len(self.vld_itr) < 1000:
             self.log_step = 100
 
-        self.model = ToxicityModel()
+        if cfg.bert_path:
+            self.model = ToxicityModel(cfg.bert_path)
+        else:
+            self.model = ToxicityModel()
         pos_weight = (len([exam for exam in self.train.examples if exam.target < 0.5])
                       / len([exam for exam in self.train.examples if exam.target >= 0.5]))
         pos_wgt_tensor = torch.tensor([pos_weight, ], device=self.device)    # pylint: disable=not-callable
@@ -81,7 +84,7 @@ class Trainer:
                 max_f_score_str = ' is max'
                 max_f_score = metrics['f_score']
                 max_epoch = epoch
-                torch.save(self.model.state_dict(), self.cfg.model_out)
+                torch.save(self.model.state_dict(), self.cfg.model_path)
             logging.info('EPOCH[%d]: train loss: %.6f, valid loss: %.6f, acc: %.2f,' \
                          ' F: %.2f%s', epoch, train_loss, metrics['loss'],
                          metrics['accuracy'], metrics['f_score'], max_f_score_str)

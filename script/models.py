@@ -17,10 +17,8 @@ from pytorch_pretrained_bert import BertModel
 #############
 # constants #
 #############
-# BERT_MODEL_PATH = 'bert-large-cased'
-BERT_MODEL_PATH = '../input/ppbert/ppbert/bert-large-cased/bert-large-cased.tar.gz'
-
-
+# BERT_MODEL_PATH = 'bert-base-cased'
+BERT_MODEL_PATH = '../input/ppbert/ppbert/bert-base-cased.tar.gz'
 
 
 #########

@@ -27,7 +27,7 @@ def run(args: Namespace):
     Args:
         args:  program arguments
     """
-    pred = Predictor(args.model)
+    pred = Predictor(args)
     if args.test:
         pred.predict_test(args.test, args.batch_size, sys.stdout)
     else:
@@ -49,10 +49,11 @@ def main():
     main function processes only argument parsing
     """
     parser = ArgumentParser(description='predict program')
-    parser.add_argument('-m', '--model', help='model path', metavar='FILE', required=True)
+    parser.add_argument('-m', '--model-path', help='model path', metavar='FILE', required=True)
+    parser.add_argument('--bert-path', help='bert model path', metavar='FILE')
     parser.add_argument('--test', help='test dataset path', metavar='FILE')
-    parser.add_argument('--batch-size', help='batch size <default: 32>', metavar='SIZE', type=int,
-                        default=32)
+    parser.add_argument('--batch-size', help='batch size <default: 128>', metavar='SIZE', type=int,
+                        default=128)
     parser.add_argument('--input', help='input file <default: stdin>', metavar='FILE')
     parser.add_argument('--output', help='output file <default: stdout>', metavar='FILE')
     parser.add_argument('--debug', help='enable debug', action='store_true')

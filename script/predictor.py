@@ -8,6 +8,7 @@ __copyright__ = 'No copyright, just copyleft!'
 ###########
 # imports #
 ###########
+from argparse import Namespace
 import logging
 from typing import TextIO
 
@@ -27,13 +28,17 @@ class Predictor:
     """
     predictor class
     """
-    def __init__(self, model_path: str):
+    def __init__(self, cfg: Namespace):
         """
         Args:
             model_path:  model path
         """
-        self.model = ToxicityModel()
-        self.model.load(model_path)
+        self.cfg = cfg
+        if cfg.bert_path:
+            self.model = ToxicityModel(cfg.bert_path)
+        else:
+            self.model = ToxicityModel()
+        self.model.load(cfg.model_path)
         self.model.eval()
         self.bert_field = BertField()
 
