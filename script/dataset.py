@@ -116,21 +116,21 @@ class BoolField(Field):
     boolean field
     """
     def __init__(self, is_target: bool = False):
-        super().__init__(dtype=torch.float32, use_vocab=False, sequential=False,    # pylint: disable=no-member
+        super().__init__(dtype=torch.long, use_vocab=False, sequential=False,    # pylint: disable=no-member
                          is_target=is_target, batch_first=True, preprocessing=BoolField.preproc)
 
     @classmethod
-    def preproc(cls, val: str) -> bool:
+    def preproc(cls, val: str) -> int:
         """
         preprocessor before numericalizing
         Args:
             val:  string value
         Returns:
-            boolean value
+            int value
         """
         prob = float(val)
         assert 0.0 <= prob <= 1.0
-        return 1.0 if prob >= 0.5 else 0.0
+        return 1 if prob >= 0.5 else 0
 
 
 class FloatField(Field):

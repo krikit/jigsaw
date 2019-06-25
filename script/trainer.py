@@ -12,6 +12,7 @@ from argparse import Namespace
 import logging
 from typing import Dict, List
 
+from pytorch_pretrained_bert.modeling import BertForSequenceClassification
 import torch
 from torch import nn, optim
 from torchtext.data import Dataset, BucketIterator
@@ -20,7 +21,6 @@ from tqdm import tqdm
 from parallel import DataParallelModel, DataParallelCriterion
 
 from dataset import RATING_FIELD
-from models import ToxicityModel
 
 
 #########
@@ -57,14 +57,12 @@ class Trainer:
         elif len(self.vld_itr) < 1000:
             self.log_step = 100
 
-        if cfg.bert_path:
-            self.model = ToxicityModel(cfg.bert_path)
-        else:
-            self.model = ToxicityModel()
+        bert_path = cfg.bert_path if cfg.bert_path else 'bert-base-cased'
+        self.model = BertForSequenceClassification.from_pretrained(bert_path, num_labels=2)
         pos_weight = (len([exam for exam in self.train.examples if exam.target < 0.5])
                       / len([exam for exam in self.train.examples if exam.target >= 0.5]))
-        pos_wgt_tensor = torch.tensor([pos_weight, ], device=self.device)    # pylint: disable=not-callable
-        self.criterion = nn.BCEWithLogitsLoss(pos_weight=pos_wgt_tensor)
+        pos_wgt_tensor = torch.tensor([1.0, pos_weight], device=self.device)    # pylint: disable=not-callable
+        self.criterion = nn.CrossEntropyLoss(weight=pos_wgt_tensor)
         if torch.cuda.is_available():
             self.model = DataParallelModel(self.model.cuda())
             self.criterion = DataParallelCriterion(self.criterion)
@@ -108,12 +106,10 @@ class Trainer:
             outputs = self.model(batch.comment_text)
             # output of model wrapped with DataParallelModel is a list of outputs from each GPU
             # make input of DataParallelCriterion as a list of tuples
-            # since output of ToxicityModel is a scalar value fro 0 to 1,
-            #   squeeze first dim of output which size is [batch, 1]
             if isinstance(self.model, DataParallelModel):
-                loss = self.criterion([(output.squeeze(1), ) for output in outputs], batch.target)
+                loss = self.criterion([(output, ) for output in outputs], batch.target)
             else:
-                loss = self.criterion(outputs.squeeze(1), batch.target)
+                loss = self.criterion(outputs, batch.target)
             losses.append(loss.item())
             if step % self.log_step == 0:
                 avg_loss = sum(losses) / len(losses)
@@ -140,13 +136,13 @@ class Trainer:
             with torch.no_grad():
                 outputs = self.model(batch.comment_text)
                 if isinstance(self.model, DataParallelModel):
-                    loss = self.criterion([(output.squeeze(1), ) for output in outputs],
+                    loss = self.criterion([(output, ) for output in outputs],
                                           batch.target)
                     for output in outputs:
-                        preds.extend([o.item() for o in torch.sigmoid(output.squeeze(1))])    # pylint: disable=no-member
+                        preds.extend([(0 if o[0] < o[1] else 1) for o in output])
                 else:
-                    loss = self.criterion(outputs.squeeze(1), batch.target)
-                    preds.extend([output.item() for output in torch.sigmoid(outputs.squeeze(1))])    # pylint: disable=no-member
+                    loss = self.criterion(outputs, batch.target)
+                    preds.extend([(0 if output[0] < output[1] else 1) for output in outputs])
                 losses.append(loss.item())
                 golds.extend([gold.item() for gold in batch.target])
                 if step % self.log_step == 0:

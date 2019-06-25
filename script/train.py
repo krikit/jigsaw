@@ -42,8 +42,8 @@ def main():
     parser.add_argument('-m', '--model-path', help='model output path', metavar='FILE',
                         required=True)
     parser.add_argument('--bert-path', help='bert model path', metavar='FILE')
-    parser.add_argument('--batch-size', help='batch size <default: 512>', metavar='SIZE', type=int,
-                        default=512)
+    parser.add_argument('--batch-size', help='batch size <default: 28>', metavar='SIZE', type=int,
+                        default=28)
     parser.add_argument('--epoch', help='epoch number <default: 100>', metavar='NUM', type=int,
                         default=100)
     parser.add_argument('--patience', help='patience number for early stopping <default: 10>',

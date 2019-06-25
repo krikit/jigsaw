@@ -52,8 +52,8 @@ def main():
     parser.add_argument('-m', '--model-path', help='model path', metavar='FILE', required=True)
     parser.add_argument('--bert-path', help='bert model path', metavar='FILE')
     parser.add_argument('--test', help='test dataset path', metavar='FILE')
-    parser.add_argument('--batch-size', help='batch size <default: 128>', metavar='SIZE', type=int,
-                        default=128)
+    parser.add_argument('--batch-size', help='batch size <default: 16>', metavar='SIZE', type=int,
+                        default=16)
     parser.add_argument('--input', help='input file <default: stdin>', metavar='FILE')
     parser.add_argument('--output', help='output file <default: stdout>', metavar='FILE')
     parser.add_argument('--debug', help='enable debug', action='store_true')
